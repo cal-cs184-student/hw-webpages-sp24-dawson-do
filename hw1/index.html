@@ -32,8 +32,11 @@
 <div>
 
 <h2 align="middle">Overview</h2>
-<p>In this homework assignment, we modified an existing rasterizer code to support triangle rendering, supersampling, and texture mapping. In the first section, we prepare the code for rasterizing monocolor triangles. We support antialiasing using supersampling, which helps reduce the visual artifacts. In the second section, we implement sampling support for both interpolated colors and textures.</p>
-<h2 align="middle">Section I: Rasterization</h2>
+<p>In this homework assignment, we modified an existing rasterizer code to support triangle rendering, supersampling, and texture mapping. In the first part, we prepare the code for rasterizing monocolor triangles. We support antialiasing using supersampling, which helps reduce the visual artifacts. In the second part, we implement sampling support for both interpolated colors and textures. In the third, we write code to support hierarchical affine transformations. In the fourth, we implement barycentric interpolation. In the fifth, we implement texture map sampling for both nearest pixel and bilinear interpolation. In the sixth, we implement level sampling of texture maps via mipmaps, with support for both nearest level and bilinear interpolation.
+Overall, this assignment gives a robust overview of the different sampling methods that enter at different stages of the rasterization pipeline. In addition, we probe the interplay between various sampling methods, and the resultant tradeoffs in computational time, memory, and aesthetic quality. We find that supersampling typically yields the aesthetically best results, since it is the closest to averaging over a pixel regardless of the underlying data (color, texture, etc.). It is indifferent to the structure of the data, but has the drawback of being among the more expensive sampling methods, requiring a scalar multiple of the original amount of work. For texture maps, bilinear interpolation is very important for smoothness at low sampling rates and level sampling can be a much cheaper method of achieving an effect similar to supersampling. However, neither of these methods produces as aesthetically pleasing results as the method of supersampling.
+</p>
+  
+  <h2 align="middle">Section I: Rasterization</h2>
 
 <h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
 
@@ -124,7 +127,39 @@
   <h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
 <p>Pixel sampling is the process of going from the continuous coordinates in texture space associated with a point in pixel space to a color. To explain this process, we start with a sample point in pixel space, (x,y). If it is inside the triangle, we use the barycentric interpolation to compute properties at the point. One such property is that vertices of the triangle will have associated coordinates in the texture space. Then, we can interpolate the texture coordinates associated with (x,y) by barycentric interpolation, as in Part 4, to get texture coordinates (u,v). These will be continuous coordinates on (0,1) x (0,1) under our convention, but the texture map will only consist of an array of colors, corresponding to equally spaced positions on this grid. Therefore, to get a color at (u,v), we must determine a color from the discrete grid.</p>
 <p>The first option is nearest texel, where the texels are the texture colors in the texture map. In this method, we simply choose the nearest texel to our point (u,v). To do so, we can simply round each coordinate to the nearest coordinate in texel space. The drawback is that this method is discontinuous when we cross the midline between points. This will lead to aliasing due to a sharp boundary (infinite frequency variation). An approach that reduces aliasing is to perform bilinear interpolation. In this method, we determine the square in which (u,v) lies in the texel space and take the linear combination of the color values at the four neighboring texels. Note that we ensure that the algorithm chooses four valid texels if the point lies on the boundary between texels (this is of particular importance if we lie on the boundary of the entire texture map).</p>
-
+<p>To compare the methods, we used both methods at two sampling rates, one sample per pixel and sixteen samples per pixel. The results for one sample per pixel are shown below for the texmap test 1 at resolution 800x600. We see that the bilinear pixel sampling greatly outperforms the nearest pixel sampling. In both, the latitude and longitude lines look disconnected, but on the whole, the bilinear interpolation produces smoother lines. The insert (zoomed in by the British Isles) shows that with bilinear interpolation, gradients are diminished and there is a continuous change between colors. However, we are still undersampling as there remain gaps.</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="nearest_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">One sample per pixel with nearest pixel sampling.</figcaption>
+      </td>
+      <td>
+        <img src="linear_1.png" align="middle" width="400px"/>
+        <figcaption align="middle">One sample per pixel with bilinear pixel sampling.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+  <p>Next, we show the same results for sixteen samples per pixel. In both the image looks significantly better than with one sample per pixel, as the latitude and longitude lines look almost perfectly continuous and there is little visible aliasing. However, from the insert, we can see that the bilinear pixel sampling does slightly better, with the latitude line looking a much more uniform color than in the nearest pixel sampling. An explanation for this is that performing the interpolation ensures that when a pixel moves across the midline between two texels, it will change color in a continuous manner, unlike in the nearest pixel case where jumps will be visible. However, due to the supersampling, this benefit is minimized, as the supersamples serve to help make the transitions appear more continuous as well.</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="nearest_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Sixteen samples per pixel with nearest pixel sampling</figcaption>
+      </td>
+      <td>
+        <img src="linear_16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Sixteen samples per pixel with bilinear pixel sampling.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+  
+  <p>In this example, we see that the supersampling without bilinear interpolation of the texture performs much better than the bilinear interpolation of the texture without supersampling. An explanation is that with supersampling, we are incorporating information from 16 points, as opposed to only 4 points in the bilinear interpolation. Bilinear interpolation of the texture will be more important where the texture map itself is rapidly varying from texel to texel. In this case, we need to transition smoothly between texels when points in pixel space are moving. On the other hand, if the texture map is very smoothly varying, then bilinear interpolation will not be as useful, since the four texels will likely all have fairly similar colors. Supersampling will be important when our pixels are undersampling the texel space. This will be the case when consecutive pixels in pixel space are far apart in texel space. Therefore, we will need additional supersamples to effectively sample the texture space between the pixels. This is also the same condition for using a mipmap, which makes sense, as a mipmap effectively moves the supersampling operation to sampling the appropriate level of mipmap.</p>
+  
   <h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
 <p>Another contributor to aliasing can arise from texture mapping. If the sample points in the pixel space are spaced far apart when mapped to the texture space, then colors will be drawn from single samples in a high frequency region of the texture map. The consequence of this will be aliasing due to the high frequency in the underlying texture map. For example, if we have a quickly varying texture and sample it far apart, we will accidentally create a new signal. Accordingly, we need to filter the texture space, which amounts to spatially convoluting over the region in the texel space corresponding to each sample. An efficient way to do this is to a priori perform the filtering in a logarithmic fashion. This will require log(N) levels of texture maps, each having a factor of 4 less information, meaning the total space will only be a factor of 4/3 more than the original texture map. This structure is called a mipmap. Then, for each sample in pixel space, we use the level of the mipmap that approximates the texture space occupied by the sample’s corresponding area in pixel space. As an example, if moving to the next sample in pixel space moves to a point 4 texels away in texture space, then we should use the 2nd level of the mipmap to filter over the 4x4 texel domain corresponding to the sample.</p>
 <p>The three approaches used here for level sampling are, first to use the level zero texture map (no mipmap usage–naively sampling from the original texture map), second to use the nearest level of the mipmap, and third to linearly interpolate between the two appropriate levels of the mipmap. The first approach suffers from the aliasing described above. The second approach introduces a new aliasing effect, in which there are discrete jumps in the level of mipmap, and such a discontinuity will introduce its own aliasing artifacts. The third approach has the least aliasing, due to continuously transitioning between levels of the mipmap, leading to a smoother representation of the texture map.</p>
