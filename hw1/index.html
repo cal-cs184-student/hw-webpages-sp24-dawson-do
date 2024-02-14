@@ -51,9 +51,6 @@
   
 <p>The original approach for rasterizing each triangle was as follows: we first checked if the given points defining the triangle are given in counterclockwise order—if not then we swapped the first and last point. Then we determined the circumscribed rectangle using the extrema of the triangle’s x and y coordinates. We further optimized the bounding box by restricting it to the view frame. This would be relevant if the triangle had one or more vertices off the screen. For every pixel inside the bounding box, we checked if that point was inside the triangle using three line tests. If it was inside the triangle, we then set the corresponding sample buffer pixel to be the given color. We revised the approach to simply compute the barycentric coordinates of each point in the bounding box. This circumvents the need to reorder the vertices, as the barycentric coordinates are independent of winding order. Note that we do not handle the edge case of a degenerate triangle (three colinear points), where the formula for computing the barycentric coordinates diverges.</p>
 <p>To handle the case of triangle edges, we always include a sample that falls on the boundary. This would register as one or two of the barycentric coordinates of the point vanishing, and we choose to color the pixel (i.e., we say that such a point does lie inside the triangle). A resulting edge case is if two triangles share an edge. In that case, we overwrite the frame buffer with the second plotted triangle. This does not follow the OpenGL rules, but ensures that all edges will be colored.</p>
-<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
-
-
 
 <h3 align="middle">Part 2: Antialiasing triangles</h3>
 
@@ -103,9 +100,9 @@
   </table>
 </div>
   
-<p>We pose two cubemen next to each other in poses that spell out “CS” using semaphore flag code. This code is used by sailors in order to transmit an alphanumeric signal using two flags held in their left and right hands. The right cubeman signals C by holding their right flag up and out, and their left flag down. The left cubeman signals S by holding their right flag directly out and their left flag down and out.</p>
+<p>We pose two cubepeople next to each other in poses that spell out “CS” using semaphore flag code. This code is used by sailors in order to transmit an alphanumeric signal with two flags held in their left and right hands. The right cubeperson signals C by holding their right flag up and out, and their left flag down. The left cubeperson signals S by holding their right flag directly out and their left flag down and out.</p>
 
-<h2 align="middle">Section II: Sampling</h2>
+  <h2 align="middle">Section II: Sampling</h2>
 
 <h3 align="middle">Part 4: Barycentric coordinates</h3>
     <div align="middle">
@@ -135,7 +132,36 @@
 <p>To compute the appropriate mipmap, we used the provided formula of approximating how many texels over we move if we perturb the input to the next sample in either orthogonal direction and conservatively using the larger of the two values. To do so, we computed the discrete derivative by moving forward to the next super sample. Therefore, we would use a lower level mipmap if we have a higher sampling rate, which makes sense, since we do not need to blur over as much area. In addition, we compute coordinates in (u, v) space between 0 and 1 rather than as a number of texels. Accordingly, we needed to add factors for the width and height of the texture space in texels. This was based on the lowest level of the mipmap, such that if moving 1 sample over in pixel space moved the point in texture space by 1 texel, we would compute level 0 as the appropriate mipmap.</p>
 <p>The picture we tested on was the presidential seal of the United States (from Wikimedia Commons) at a resolution of 1200x1200. We used the base svg from Test 6 and found the following results at a frame display of 430x359.</p>
 <p>What we see is that in the letters of the seal, both level zero sampling techniques give visible jagged edges. In the bilinear sampling case, the image is slightly smoother at boundaries between colors but still suffers from undersampling. A good example of this is the radiating golden lines behind the eagle’s head. In both images, it appears like random dots of yellow on the blue background.</p>
-<p>In addition, in all four images, we highlighted the eagle’s shield. In the level zero sampling with nearest pixel sampling, the shield is a collection of red and white. In the level zero with bilinear pixel sampling, it appears slightly smoothed out and the structure of lines are visible but still jagged. Then, with nearest level sampling, the shield is blurred too much, to the point where it has significant pink on the interior. Finally, in the bilinear level sampling case, the shield has pink but the red and white stripes are clearly visible. Looking at the shields only from the perspective of the overall picture, our belief is that the bilinear level sampling technique gives the most aesthetically pleasing result.</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="task 4_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Level zero texture sampling with nearest pixel sampling.</figcaption>
+      </td>
+      <td>
+        <img src="task 4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Level zero texture sampling with bilinear pixel sampling.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+  <p>We see drastically decreased jagged edges in the level sampling at the cost of increased blurs when compared to the level zero sampling. The letters no longer have rough boundaries, but instead have blurry edges. In general, the entire image appears slightly blurred. Comparing the radiating lines again, we see now that the yellow is drastically less visible, but when looking closely, we can see the suggestions of yellow lines which were absent from the level zero sampling.</p>
+      <div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="task 4_2.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest level sampling with nearest pixel sampling.</figcaption>
+      </td>
+      <td>
+        <img src="task 4.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest level sampling with bilinear pixel sampling.</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+  <p>In addition, in all four images, we highlighted the eagle’s shield. In the level zero sampling with nearest pixel sampling, the shield is a collection of red and white. In the level zero with bilinear pixel sampling, it appears slightly smoothed out and the structure of lines are visible but still jagged. Then, with nearest level sampling, the shield is blurred too much, to the point where it has significant pink on the interior. Finally, in the bilinear level sampling case, the shield has pink but the red and white stripes are clearly visible. Looking at the shields only from the perspective of the overall picture, our belief is that the bilinear level sampling technique gives the most aesthetically pleasing result.</p>
 <p>While not shown here, we also tested the code by varying all three sampling techniques simultaneously. In general, we found that supersampling had the most positive impact on the aesthetic quality of a picture. This makes sense, as it is also the most expensive to implement, since it requires a factor of the sample rate more work (which is itself quadratic in the free parameter, number of samples per a single dimension). Next, we found that for most pictures, bilinear pixel sampling provided the next most benefit. This requires 4 evaluations instead of 1 in the texture map, and is similar in spirit to the first level of supersampling, which showed similar performance. This also is a relatively high cost. Finally, we found that level sampling was generally the least effective and introduced more blur than other methods. This is perhaps unsurprising, since it is the cheapest method. It requires a factor of 4/3 more storage for the texture and some amortized cost at the beginning in computing the entire mipmap structure, but at runtime, has limited additional cost. For each sample, two additional points must have their barycentric coordinates computed to estimate the derivatives and the level must be computed. In nearest level sampling, no additional sampling work is required, while in bilinear level sampling, one additional texture map evaluation is required. This approach is cost-effective, but we believed showed the least benefit. However, when combined with the other approaches, it could make images look very smooth and certainly did provide benefits beyond the other methods alone.</p>
 </body>
 </html>
